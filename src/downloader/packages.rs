@@ -6,6 +6,7 @@ use crate::os_detect::{self, PkgFormat};
 use crate::proxy;
 use crate::wizard::state::BuildConfig;
 use super::xui::download_with_progress;
+use std::time::Instant;
 
 /// Download system packages for offline installation.
 /// Skips if the step is already marked Done and valid.
@@ -107,20 +108,15 @@ async fn download_deb(
 ) -> Result<Option<String>> {
     let api_url = format!("https://packages.ubuntu.com/jammy/{}/download", pkg);
 
-    let resp = client.get(&api_url).send().await;
-    match resp {
-        Ok(r) if r.status().is_success() => {
-            let body = r.text().await?;
-            if let Some(url) = extract_deb_url(&body, "amd64")
-                .or_else(|| extract_deb_url(&body, "all"))
-            {
-                let filename = url.split('/').last().unwrap_or(pkg).to_string();
-                let dest = format!("{}/{}", dest_dir, filename);
-                download_with_progress(client, &url, &dest, &format!("{} (.deb)", pkg)).await?;
-                return Ok(Some(filename));
-            }
+    if let Ok(Some(body)) = fetch_html_with_retry(client, &api_url).await {
+        if let Some(url) = extract_deb_url(&body, "amd64")
+            .or_else(|| extract_deb_url(&body, "all"))
+        {
+            let filename = url.split('/').last().unwrap_or(pkg).to_string();
+            let dest = format!("{}/{}", dest_dir, filename);
+            download_with_progress(client, &url, &dest, &format!("{} (.deb)", pkg)).await?;
+            return Ok(Some(filename));
         }
-        _ => {}
     }
     Ok(None)
 }
@@ -152,18 +148,46 @@ async fn download_rpm(
     let first = pkg.chars().next().unwrap_or('a');
     let index_url = format!("{}/{}/", mirror_base, first);
 
-    if let Ok(r) = client.get(&index_url).send().await {
-        if r.status().is_success() {
-            let body = r.text().await?;
-            if let Some(filename) = extract_rpm_filename(&body, pkg) {
-                let url = format!("{}/{}/{}", mirror_base, first, filename);
-                let dest = format!("{}/{}", dest_dir, filename);
-                download_with_progress(client, &url, &dest, &format!("{} (.rpm)", pkg)).await?;
-                return Ok(Some(filename));
-            }
+    if let Ok(Some(body)) = fetch_html_with_retry(client, &index_url).await {
+        if let Some(filename) = extract_rpm_filename(&body, pkg) {
+            let url = format!("{}/{}/{}", mirror_base, first, filename);
+            let dest = format!("{}/{}", dest_dir, filename);
+            download_with_progress(client, &url, &dest, &format!("{} (.rpm)", pkg)).await?;
+            return Ok(Some(filename));
         }
     }
     Ok(None)
+}
+
+async fn fetch_html_with_retry(client: &reqwest::Client, url: &str) -> Result<Option<String>> {
+    let mut first_failure: Option<Instant> = None;
+    let mut warned = false;
+
+    loop {
+        match client.get(url).send().await {
+            Ok(r) => {
+                if r.status().is_success() {
+                    if let Ok(body) = r.text().await {
+                        return Ok(Some(body));
+                    }
+                } else if r.status().is_client_error() {
+                    return Ok(None); // e.g., 404, do not retry forever
+                }
+            }
+            Err(_) => {}
+        }
+
+        if first_failure.is_none() {
+            first_failure = Some(Instant::now());
+        }
+        if let Some(ff) = first_failure {
+            if ff.elapsed().as_secs() >= 60 && !warned {
+                println!("  {} Warning: Still trying, but internet seems down. Please check your connection or press Ctrl+C to exit.", style("⚠️").yellow());
+                warned = true;
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    }
 }
 
 fn extract_rpm_filename(html: &str, pkg: &str) -> Option<String> {

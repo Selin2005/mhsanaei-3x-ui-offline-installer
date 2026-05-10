@@ -156,24 +156,20 @@ fn build_script(c: &BuildConfig) -> String {
     s.push_str("fi\n\n");
 
     // Final output
-    s.push_str("echo \"\"\n");
-    s.push_str("echo -e \"${green}═══════════════════════════════════════════${plain}\"\n");
-    s.push_str("echo -e \"${green}        3x-ui installed successfully!      ${plain}\"\n");
-    s.push_str("echo -e \"${green}═══════════════════════════════════════════${plain}\"\n");
-    s.push_str(&format!("echo -e \"${{green}}Username: {}${{plain}}\"\n", c.panel_username));
-    s.push_str(&format!("echo -e \"${{green}}Password: {}${{plain}}\"\n", c.panel_password));
-    s.push_str(&format!("echo -e \"${{green}}Port:     {}${{plain}}\"\n", c.panel_port));
-    s.push_str(&format!("echo -e \"${{green}}WebPath:   {}${{plain}}\"\n", c.panel_web_base_path));
-    
     let protocol = match c.ssl { SslConfig::None => "http", _ => "https" };
-    s.push_str(&format!(
-        "echo -e \"${{green}}Access Link: {}://{}:{}/{}${{plain}}\"\n",
-        protocol, c.server_host, c.panel_port, c.panel_web_base_path
-    ));
+    let access_link = format!("{}://{}:{}/{}", protocol, c.server_host, c.panel_port, c.panel_web_base_path);
 
+    s.push_str("echo \"\"\n");
+    s.push_str("echo -e \"${green}╔════════════════════════════════════════════════════════════╗${plain}\"\n");
+    s.push_str("echo -e \"${green}║                3x-ui installed successfully!               ║${plain}\"\n");
+    s.push_str("echo -e \"${green}╠════════════════════════════════════════════════════════════╣${plain}\"\n");
+    s.push_str(&format!("echo -e \"${{green}}║ Username:      {:<43} ║${{plain}}\"\n", c.panel_username));
+    s.push_str(&format!("echo -e \"${{green}}║ Password:      {:<43} ║${{plain}}\"\n", c.panel_password));
+    s.push_str(&format!("echo -e \"${{green}}║ Port:          {:<43} ║${{plain}}\"\n", c.panel_port));
+    s.push_str(&format!("echo -e \"${{green}}║ WebPath:       {:<43} ║${{plain}}\"\n", c.panel_web_base_path));
+    s.push_str(&format!("echo -e \"${{green}}║ Access Link:   {:<43} ║${{plain}}\"\n", access_link));
+    s.push_str("echo -e \"${green}╚════════════════════════════════════════════════════════════╝${plain}\"\n");
     s.push_str("echo -e \"${yellow}⚠ Keep this information secure!${plain}\"\n");
-
-    s.push_str("echo -e \"${green}═══════════════════════════════════════════${plain}\"\n");
     s.push_str("echo \"\"\n");
     s.push_str("echo -e \"Management Commands:\"\n");
     s.push_str("echo -e \"  x-ui start / stop / restart / status / log\"\n");

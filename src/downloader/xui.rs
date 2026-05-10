@@ -2,7 +2,8 @@ use anyhow::{Context, Result};
 use console::style;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
-use tokio::fs::File;
+use std::time::Instant;
+use tokio::fs::{File, OpenOptions};
 use tokio::io::AsyncWriteExt;
 
 use crate::manifest::{
@@ -100,17 +101,33 @@ pub async fn download(
 
 /// Fetch the latest release tag from GitHub API.
 async fn fetch_latest_tag(client: &reqwest::Client) -> Result<String> {
-    let resp: serde_json::Value = client
-        .get(GITHUB_API)
-        .send()
-        .await?
-        .json()
-        .await?;
+    let mut first_failure: Option<Instant> = None;
+    let mut warned = false;
 
-    resp["tag_name"]
-        .as_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| anyhow::anyhow!("GitHub API returned an invalid response"))
+    loop {
+        match client.get(GITHUB_API).send().await {
+            Ok(resp) => {
+                if let Ok(json) = resp.json::<serde_json::Value>().await {
+                    if let Some(s) = json["tag_name"].as_str() {
+                        return Ok(s.to_string());
+                    }
+                }
+                // If parsing fails, fall through to Err case handling
+            }
+            Err(_) => {}
+        }
+
+        if first_failure.is_none() {
+            first_failure = Some(Instant::now());
+        }
+        if let Some(ff) = first_failure {
+            if ff.elapsed().as_secs() >= 60 && !warned {
+                println!("  {} Warning: Still trying, but internet seems down. Please check your connection or press Ctrl+C to exit.", style("⚠️").yellow());
+                warned = true;
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    }
 }
 
 /// Returns (url, filename) for the appropriate service file.
@@ -138,8 +155,56 @@ pub async fn download_with_progress(
     dest: &str,
     label: &str,
 ) -> Result<()> {
-    let resp = client.get(url).send().await?.error_for_status()?;
-    let total = resp.content_length().unwrap_or(0);
+    let mut first_failure: Option<Instant> = None;
+    let mut warned = false;
+
+    loop {
+        match download_with_progress_inner(client, url, dest, label).await {
+            Ok(_) => return Ok(()),
+            Err(_) => {
+                if first_failure.is_none() {
+                    first_failure = Some(Instant::now());
+                }
+                if let Some(ff) = first_failure {
+                    if ff.elapsed().as_secs() >= 60 && !warned {
+                        println!("  {} Warning: Still trying, but internet seems down. Please check your connection or press Ctrl+C to exit.", style("⚠️").yellow());
+                        warned = true;
+                    }
+                }
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            }
+        }
+    }
+}
+
+async fn download_with_progress_inner(
+    client: &reqwest::Client,
+    url: &str,
+    dest: &str,
+    label: &str,
+) -> Result<()> {
+    let mut existing_bytes = 0;
+    if let Ok(metadata) = tokio::fs::metadata(dest).await {
+        existing_bytes = metadata.len();
+    }
+
+    let mut req = client.get(url);
+    if existing_bytes > 0 {
+        req = req.header("Range", format!("bytes={}-", existing_bytes));
+    }
+
+    let resp = req.send().await?.error_for_status()?;
+    let status = resp.status();
+    
+    // Total size is existing bytes + remaining bytes
+    let total = existing_bytes + resp.content_length().unwrap_or(0);
+    
+    let mut file = if status == reqwest::StatusCode::PARTIAL_CONTENT {
+        OpenOptions::new().create(true).append(true).open(dest).await?
+    } else {
+        existing_bytes = 0; // Server didn't support Range, start from scratch
+        File::create(dest).await?
+    };
 
     let pb = ProgressBar::new(total);
     pb.set_style(
@@ -149,10 +214,10 @@ pub async fn download_with_progress(
         .progress_chars("█▓░"),
     );
     pb.set_message(label.to_string());
+    pb.set_position(existing_bytes);
 
-    let mut file = File::create(dest).await?;
     let mut stream = resp.bytes_stream();
-    let mut downloaded: u64 = 0;
+    let mut downloaded = existing_bytes;
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
