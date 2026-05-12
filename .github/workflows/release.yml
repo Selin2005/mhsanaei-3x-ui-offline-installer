@@ -52,9 +52,8 @@ jobs:
       - name: Update Version in Cargo.toml
         shell: bash
         run: |
-          # Strip 'v' prefix if present
           CLEAN_VERSION=$(echo "${{ github.event.inputs.version || '0.1.0' }}" | sed 's/^v//')
-          sed -i "s/^version = \".*\"/version = \"$CLEAN_VERSION\"/" Cargo.toml
+          python3 -c "import re; content = open('Cargo.toml').read(); content = re.sub(r'^version = \".*\"', f'version = \"{CLEAN_VERSION}\"', content, flags=re.M); open('Cargo.toml', 'w').write(content)"
 
       - run: cargo build --release --target ${{ matrix.target }}
 
