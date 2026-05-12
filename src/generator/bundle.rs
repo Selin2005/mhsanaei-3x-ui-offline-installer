@@ -49,6 +49,14 @@ echo -e "${C_CYN}   🚀  3x-ui Offline Self-Extracting Installer${C_RST}"
 echo -e "${C_CYN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RST}"
 echo -e ""
 
+echo -e "${C_BLU}This package will extract and launch the 3x-ui offline installer.${C_RST}"
+read -p "📦 Do you want to proceed? [y/N]: " confirm
+if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    echo -e "${C_RED}Aborted.${C_RST}"
+    exit 0
+fi
+echo -e ""
+
 # Find the line where binary data starts
 PAYLOAD_LINE=$(awk '/^__BINARY_DATA_BELOW__/ {print NR + 1; exit 0; }' "$0")
 

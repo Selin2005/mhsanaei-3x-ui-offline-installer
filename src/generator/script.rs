@@ -87,12 +87,27 @@ fn build_script(c: &BuildConfig) -> String {
         s.push_str(&version_id_line);
         s.push('\n');
     }
-
-    s.push('\n');
     s.push_str("# ── Root Check ──────────────────────────────────────────────\n");
     s.push_str("[[ $EUID -ne 0 ]] && echo -e \"${red}Error: This script must be run as root.${plain}\" && exit 1\n\n");
 
-    s.push_str("echo -e \"${green}Starting 3x-ui installation (Offline version)...${plain}\"\n\n");
+    s.push_str("# ── Safety Confirmation & Detection ─────────────────────────\n");
+    s.push_str("echo -e \"${blue}This is a 3x-ui Offline Installer.${plain}\"\n");
+    s.push_str("echo -e \"It will install the panel and all dependencies from local files.\"\n\n");
+
+    s.push_str("if [[ -d \"$xui_folder\" ]]; then\n");
+    s.push_str("    echo -e \"${yellow}⚠️  WARNING: Existing 3x-ui installation detected in $xui_folder!${plain}\"\n");
+    s.push_str("    echo -e \"${yellow}   Installing now will overwrite your existing panel binary and service.${plain}\"\n");
+    s.push_str("    read -p \"   Do you want to proceed and OVERWRITE? [y/N]: \" confirm\n");
+    s.push_str("else\n");
+    s.push_str("    read -p \"🚀 Do you want to start the installation? [y/N]: \" confirm\n");
+    s.push_str("fi\n\n");
+
+    s.push_str("if [[ ! \"$confirm\" =~ ^[Yy]$ ]]; then\n");
+    s.push_str("    echo -e \"${red}Installation aborted by user.${plain}\"\n");
+    s.push_str("    exit 0\n");
+    s.push_str("fi\n\n");
+
+    s.push_str("echo -e \"${green}Starting 3x-ui installation process...${plain}\"\n\n");
 
     // Package functions
     s.push_str("# ── System Package Installation ─────────────────────────────\n");
