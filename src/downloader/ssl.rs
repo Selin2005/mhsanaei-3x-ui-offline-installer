@@ -117,16 +117,80 @@ pub async fn generate_lets_encrypt(domain: &str, out_dir: &str, proxy: &Option<P
     let digest = Sha256::digest(key_auth.as_bytes());
     let txt_value = URL_SAFE_NO_PAD.encode(&digest);
     let txt_name = format!("_acme-challenge.{}", domain);
+    // For "sub.example.com" → the record name in DNS panel is "_acme-challenge.sub"
+    // For "example.com" → the record name in DNS panel is "_acme-challenge"
+    let domain_parts: Vec<&str> = domain.splitn(2, '.').collect();
+    let root_domain = if domain_parts.len() == 2 {
+        // Check if this looks like a subdomain (more than 2 parts total)
+        let all_parts: Vec<&str> = domain.split('.').collect();
+        if all_parts.len() > 2 {
+            // e.g., sub.example.com → root is example.com, subdomain part is sub
+            let root_parts = &all_parts[all_parts.len()-2..];
+            root_parts.join(".")
+        } else {
+            // e.g., example.com → root is example.com
+            domain.to_string()
+        }
+    } else {
+        domain.to_string()
+    };
 
-    println!("  {}", style("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").yellow());
-    println!("  {} {}", style("ℹ️  Let's Encrypt DNS-01 Challenge:").bold(), "");
-    println!("  {}", style("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").yellow());
-    println!("  Please add the following TXT record to your domain's DNS settings:");
+    // Build the DNS record "Name" field as it should appear in DNS panels
+    let all_parts: Vec<&str> = domain.split('.').collect();
+    let dns_record_name = if all_parts.len() > 2 {
+        // Subdomain case: sub.example.com → _acme-challenge.sub
+        let subdomain_parts = &all_parts[..all_parts.len()-2];
+        format!("_acme-challenge.{}", subdomain_parts.join("."))
+    } else {
+        // Root domain case: example.com → _acme-challenge
+        "_acme-challenge".to_string()
+    };
+
     println!();
-    println!("  Host/Name: {}", style(&txt_name).cyan().bold());
-    println!("  Value:     {}", style(&txt_value).cyan().bold());
+    println!("  {}", style("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").yellow());
+    println!("  {} ", style("🔐 Let's Encrypt DNS-01 Challenge — Step-by-Step Guide").bold());
+    println!("  {}", style("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").yellow());
     println!();
-    println!("  After saving the record in Cloudflare or your DNS provider,");
+    println!("  To verify that you own {}, Let's Encrypt needs you", style(domain).cyan().bold());
+    println!("  to add a special DNS TXT record to your domain's DNS settings.");
+    println!();
+    println!("  {}", style("What you need to do:").bold().underlined());
+    println!();
+    println!("  1. Log in to your DNS provider's panel (e.g., Cloudflare, Namecheap, etc.)");
+    println!("  2. Go to the DNS settings for your domain: {}", style(&root_domain).cyan().bold());
+    println!("  3. Add a {} DNS record with these values:", style("TXT").bold().yellow());
+    println!();
+    println!("     ┌──────────────────────────────────────────────────────────────┐");
+    println!("     │  Type:   {}                                                  │", style("TXT").bold().green());
+    println!("     │  Name:   {:<51}│", style(&dns_record_name).cyan().bold());
+    println!("     │  Value:  {:<51}│", style(&txt_value).cyan().bold());
+    println!("     │  TTL:    {} (or Auto)                                      │", style("1 min").yellow());
+    println!("     └──────────────────────────────────────────────────────────────┘");
+    println!();
+    println!("  {}", style("Example for Cloudflare:").bold().underlined());
+    println!("  • Go to your domain → DNS → Records → Add Record");
+    println!("  • Type: TXT");
+    println!("  • Name: {}", style(&dns_record_name).cyan());
+    println!("  • Content: {}", style(&txt_value).cyan());
+    println!("  • Proxy status: DNS only (gray cloud)");
+    println!("  • Click Save");
+    println!();
+    println!("  {}", style("Example for Namecheap:").bold().underlined());
+    println!("  • Go to Domain List → Manage → Advanced DNS → Add New Record");
+    println!("  • Type: TXT");
+    println!("  • Host: {}", style(&dns_record_name).cyan());
+    println!("  • Value: {}", style(&txt_value).cyan());
+    println!("  • TTL: Automatic");
+    println!("  • Click Save");
+    println!();
+    println!("  {}", style("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").yellow());
+    println!("  {}", style("⚠️  Important Notes:").bold().yellow());
+    println!("  • Do NOT create a new subdomain! This is just a DNS TXT record.");
+    println!("  • The full record that will be queried is: {}", style(&txt_name).dim());
+    println!("  • DNS propagation may take 1-5 minutes. The tool will wait and retry.");
+    println!("  {}", style("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").yellow());
+    println!();
+    println!("  After saving the TXT record in your DNS provider,");
     println!("  press {} to continue...", style("Enter").bold().green());
     
     let mut input = String::new();

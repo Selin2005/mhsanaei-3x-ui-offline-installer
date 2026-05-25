@@ -1,0 +1,61 @@
+{
+  "version": "1",
+  "created_at": "2026-05-25T19:15:57.869713201Z",
+  "updated_at": "2026-05-25T19:15:57.869799597Z",
+  "config": {
+    "arch": "amd64",
+    "included_ssl": true,
+    "included_system_packages": false,
+    "included_xui_panel": false,
+    "os": "Ubuntu",
+    "os_version": "24.04",
+    "output_dir": "test",
+    "output_kind": "sfx",
+    "package_mode": "online",
+    "panel_password": "",
+    "panel_port": 8080,
+    "panel_username": "",
+    "panel_web_base_path": "",
+    "server_host": "old.needto.ir",
+    "ssl_kind": "letsencrypt(old.needto.ir)",
+    "xui_version": "latest"
+  },
+  "steps": {
+    "xui_binary": {
+      "status": "pending",
+      "files": [],
+      "sha256": [],
+      "note": null
+    },
+    "xui_sh": {
+      "status": "pending",
+      "files": [],
+      "sha256": [],
+      "note": null
+    },
+    "service_file": {
+      "status": "pending",
+      "files": [],
+      "sha256": [],
+      "note": null
+    },
+    "packages": {
+      "status": "pending",
+      "files": [],
+      "sha256": [],
+      "note": null
+    },
+    "install_sh": {
+      "status": "pending",
+      "files": [],
+      "sha256": [],
+      "note": null
+    },
+    "ssl": {
+      "status": "pending",
+      "files": [],
+      "sha256": [],
+      "note": null
+    }
+  }
+}
