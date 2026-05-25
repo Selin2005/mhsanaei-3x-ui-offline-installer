@@ -150,7 +150,8 @@ pub async fn run() -> Result<BuildConfig> {
     println!("{}", style("┌─ Step 4/8 — Target Server Address ──────────────────────┐").bold().blue());
     println!();
     let server_host: String = Input::with_theme(&theme)
-        .with_prompt("Target Server IP or Domain (for SSL and access link)")
+        .with_prompt("Target Server IP or Domain (Used for displaying the access link)")
+        .default("127.0.0.1".to_string())
         .interact_text()?;
     let server_host = server_host.trim().to_string();
     println!();
@@ -217,21 +218,33 @@ pub async fn run() -> Result<BuildConfig> {
                 SslConfig::Custom { fullchain_path: cert.trim().into(), privkey_path: key.trim().into() }
             }
             2 => {
+                let domain: String = Input::with_theme(&theme)
+                    .with_prompt("Enter the IP or Domain for the certificate")
+                    .default(server_host.clone())
+                    .interact_text()?;
+                let domain = domain.trim().to_string();
+                
                 println!();
                 let dynamic = Confirm::with_theme(&theme)
                     .with_prompt("Make installer reusable? (Generate SSL certificate dynamically during installation on target server)")
                     .default(false)
                     .interact()?;
-                SslConfig::SelfSigned { common_name: server_host.clone(), dynamic }
+                SslConfig::SelfSigned { common_name: domain, dynamic }
             }
             _ => {
+                let domain: String = Input::with_theme(&theme)
+                    .with_prompt("Enter the Domain or Subdomain for Let's Encrypt")
+                    .default(if server_host != "127.0.0.1" { server_host.clone() } else { "".to_string() })
+                    .interact_text()?;
+                let domain = domain.trim().to_string();
+                
                 println!();
-                let is_ip = server_host.split('.').count() == 4 && server_host.split('.').all(|part| part.parse::<u8>().is_ok());
+                let is_ip = domain.split('.').count() == 4 && domain.split('.').all(|part| part.parse::<u8>().is_ok());
                 if is_ip {
                     println!("  {} Let's Encrypt requires a valid domain or subdomain, not an IP.", style("✗").red());
                     anyhow::bail!("Invalid domain for Let's Encrypt.");
                 }
-                SslConfig::LetsEncrypt { domain: server_host.clone() }
+                SslConfig::LetsEncrypt { domain }
             }
         };
         println!();
