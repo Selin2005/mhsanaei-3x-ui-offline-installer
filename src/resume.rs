@@ -421,6 +421,10 @@ pub fn config_from_manifest(manifest: &Manifest, dir: &str) -> Result<BuildConfi
         SslConfig::None
     };
 
+    let sys_pkgs = cfg.get("included_system_packages").and_then(|v| v.as_bool()).unwrap_or(true);
+    let ssl_inc = cfg.get("included_ssl").and_then(|v| v.as_bool()).unwrap_or(true);
+    let xui_inc = cfg.get("included_xui_panel").and_then(|v| v.as_bool()).unwrap_or(true);
+
     Ok(BuildConfig {
         os,
         arch,
@@ -436,5 +440,10 @@ pub fn config_from_manifest(manifest: &Manifest, dir: &str) -> Result<BuildConfi
         proxy:               None,
         output_dir:          dir.to_string(),
         output_kind:         if get_str("output_kind") == "sfx" { OutputKind::Sfx } else { OutputKind::Folder },
+        included: crate::wizard::state::IncludedComponents {
+            system_packages: sys_pkgs,
+            ssl: ssl_inc,
+            xui_panel: xui_inc,
+        },
     })
 }

@@ -41,6 +41,11 @@ pub async fn test_all_mirrors() -> Result<()> {
             proxy: None,
             output_dir: "/tmp/test".to_string(),
             output_kind: OutputKind::Folder,
+            included: crate::wizard::state::IncludedComponents {
+                system_packages: true,
+                ssl: true,
+                xui_panel: true,
+            },
         };
 
         let packages = crate::os_detect::required_packages(&os);

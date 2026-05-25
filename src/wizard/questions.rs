@@ -11,7 +11,7 @@ pub async fn run() -> Result<BuildConfig> {
     let theme = ColorfulTheme::default();
 
     // ── Step 1: OS ───────────────────────────────────────────────────────────
-    println!("{}", style("┌─ Step 1/7 — Target Server Info ─────────────────────────┐").bold().blue());
+    println!("{}", style("┌─ Step 1/8 — Target Server Info ─────────────────────────┐").bold().blue());
     println!();
 
     let os_items = vec![
@@ -74,7 +74,7 @@ pub async fn run() -> Result<BuildConfig> {
     println!();
 
     // ── Step 2: Package mode ─────────────────────────────────────────────────
-    println!("{}", style("┌─ Step 2/7 — System Package Installation ────────────────┐").bold().blue());
+    println!("{}", style("┌─ Step 2/8 — System Package Installation ────────────────┐").bold().blue());
     println!();
 
     let pkg_mode_items = vec![
@@ -100,7 +100,7 @@ pub async fn run() -> Result<BuildConfig> {
     println!();
 
     // ── Step 3: Server IP/Host ───────────────────────────────────────────────
-    println!("{}", style("┌─ Step 3/7 — Target Server Address ──────────────────────┐").bold().blue());
+    println!("{}", style("┌─ Step 3/8 — Target Server Address ──────────────────────┐").bold().blue());
     println!();
     let server_host: String = Input::with_theme(&theme)
         .with_prompt("Target Server IP or Domain (for SSL and access link)")
@@ -109,7 +109,7 @@ pub async fn run() -> Result<BuildConfig> {
     println!();
 
     // ── Step 4: x-ui version ─────────────────────────────────────────────────
-    println!("{}", style("┌─ Step 4/7 — x-ui Version ───────────────────────────────┐").bold().blue());
+    println!("{}", style("┌─ Step 4/8 — x-ui Version ───────────────────────────────┐").bold().blue());
     println!();
     let ver_items = vec!["Latest Version (GitHub)", "Specific Version"];
     let ver_sel = Select::with_theme(&theme).items(&ver_items).default(0).interact()?;
@@ -120,7 +120,7 @@ pub async fn run() -> Result<BuildConfig> {
     println!();
 
     // ── Step 5: Panel settings ───────────────────────────────────────────────
-    println!("{}", style("┌─ Step 5/7 — Panel Settings ─────────────────────────────┐").bold().blue());
+    println!("{}", style("┌─ Step 5/8 — Panel Settings ─────────────────────────────┐").bold().blue());
     println!();
     let panel_port = prompt::random_port();
     let panel_username = prompt::random_string(8);
@@ -135,7 +135,7 @@ pub async fn run() -> Result<BuildConfig> {
     println!();
 
     // ── Step 6: SSL ──────────────────────────────────────────────────────────
-    println!("{}", style("┌─ Step 6/7 — SSL Settings ───────────────────────────────┐").bold().blue());
+    println!("{}", style("┌─ Step 6/8 — SSL Settings ───────────────────────────────┐").bold().blue());
     println!();
     let ssl_items = vec![
         "No SSL",
@@ -171,8 +171,50 @@ pub async fn run() -> Result<BuildConfig> {
     };
     println!();
 
-    // ── Step 7: Output Kind ──────────────────────────────────────────────────
-    println!("{}", style("┌─ Step 7/7 — Output File Type ───────────────────────────┐").bold().blue());
+    // ── Step 7: Modular Updater (Advanced) ───────────────────────────────────
+    println!("{}", style("┌─ Step 7/8 — Modular Updater (Advanced) ─────────────────┐").bold().blue());
+    println!();
+    
+    let is_updater = Confirm::with_theme(&theme)
+        .with_prompt("Do you want to customize the components to include in this build? (e.g., to create a lightweight updater)")
+        .default(false)
+        .interact()?;
+        
+    let mut included = IncludedComponents {
+        system_packages: true,
+        ssl: true,
+        xui_panel: true,
+    };
+
+    if is_updater {
+        let items = vec![
+            "System Packages (curl, socat, etc.)",
+            "SSL Certificates (Setup & Generation)",
+            "3x-ui Panel Binary",
+        ];
+        
+        loop {
+            let selections = dialoguer::MultiSelect::with_theme(&theme)
+                .with_prompt("Select components to INCLUDE in the output bundle (Space to toggle, Enter to confirm)")
+                .items(&items)
+                .defaults(&[true, true, true])
+                .interact()?;
+                
+            if selections.is_empty() {
+                println!("  {} You must select at least one component!", style("✗").red());
+                continue;
+            }
+            
+            included.system_packages = selections.contains(&0);
+            included.ssl = selections.contains(&1);
+            included.xui_panel = selections.contains(&2);
+            break;
+        }
+    }
+    println!();
+
+    // ── Step 8: Output Kind ──────────────────────────────────────────────────
+    println!("{}", style("┌─ Step 8/8 — Output File Type ───────────────────────────┐").bold().blue());
     println!();
     let out_items = vec![
         "Self-Extracting (.sh) — Single file, easiest to transfer (Recommended)",
@@ -247,5 +289,6 @@ pub async fn run() -> Result<BuildConfig> {
         os, arch, os_version, package_mode, server_host, xui_version,
         panel_port, panel_username, panel_password, panel_web_base_path,
         ssl, output_dir: output_dir.trim().to_string(), output_kind, proxy: None,
+        included,
     })
 }

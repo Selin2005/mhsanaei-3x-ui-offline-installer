@@ -1,6 +1,13 @@
 use crate::proxy::ProxyConfig;
 
 
+#[derive(Debug, Clone)]
+pub struct IncludedComponents {
+    pub system_packages: bool,
+    pub ssl: bool,
+    pub xui_panel: bool,
+}
+
 /// All configuration collected from the user during the wizard phase.
 /// This is the single source of truth passed to downloader and generator.
 #[derive(Debug, Clone)]
@@ -34,6 +41,9 @@ pub struct BuildConfig {
     // ── Output ───────────────────────────────────────────────────
     pub output_dir: String,
     pub output_kind: OutputKind,
+    
+    // ── Included Components (Updater Mode) ───────────────────────
+    pub included: IncludedComponents,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

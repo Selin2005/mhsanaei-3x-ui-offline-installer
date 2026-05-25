@@ -14,22 +14,32 @@ pub async fn download_all(config: &BuildConfig, manifest: &mut Manifest) -> Resu
     std::fs::create_dir_all(out)?;
 
     // 1. x-ui binary + CLI + service file (with resume support)
-    xui::download(config, out, manifest).await?;
+    if config.included.xui_panel {
+        xui::download(config, out, manifest).await?;
+    } else {
+        println!("  {} Panel Binary — Skipped (Modular build).", console::style("⏭️").dim());
+    }
 
     // 2. System packages (only in offline mode, with resume support)
-    if config.package_mode == PackageMode::Offline {
-        let pkg_dir = format!("{}/packages", out);
-        std::fs::create_dir_all(&pkg_dir)?;
-        packages::download(config, &pkg_dir, out, manifest).await?;
-    } else {
-        // Mark packages as done with empty list (online mode = not needed)
-        if !manifest.step_is_done(STEP_PACKAGES) {
-            manifest.mark_done(out, STEP_PACKAGES, vec![])?;
+    if config.included.system_packages {
+        if config.package_mode == PackageMode::Offline {
+            let pkg_dir = format!("{}/packages", out);
+            std::fs::create_dir_all(&pkg_dir)?;
+            packages::download(config, &pkg_dir, out, manifest).await?;
+        } else {
+            // Mark packages as done with empty list (online mode = not needed)
+            if !manifest.step_is_done(STEP_PACKAGES) {
+                manifest.mark_done(out, STEP_PACKAGES, vec![])?;
+            }
         }
+    } else {
+        println!("  {} System Packages — Skipped (Modular build).", console::style("⏭️").dim());
     }
 
     // 3. SSL files (with resume support)
-    if manifest.step_is_valid(out, STEP_SSL) {
+    if !config.included.ssl {
+        println!("  {} SSL — Skipped (Modular build).", console::style("⏭️").dim());
+    } else if manifest.step_is_valid(out, STEP_SSL) {
         println!("  {} SSL — Already exists, skipping.", console::style("⏭️").dim());
     } else {
         match &config.ssl {

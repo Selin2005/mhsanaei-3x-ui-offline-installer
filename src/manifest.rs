@@ -229,6 +229,9 @@ pub struct SerializableConfig {
     pub server_host:       String,
     pub output_dir:        String,
     pub output_kind:       String,
+    pub included_system_packages: bool,
+    pub included_ssl: bool,
+    pub included_xui_panel: bool,
 }
 
 impl From<&BuildConfig> for SerializableConfig {
@@ -264,6 +267,9 @@ impl From<&BuildConfig> for SerializableConfig {
                 OutputKind::Sfx    => "sfx".to_string(),
                 OutputKind::Folder => "folder".to_string(),
             },
+            included_system_packages: c.included.system_packages,
+            included_ssl: c.included.ssl,
+            included_xui_panel: c.included.xui_panel,
         }
     }
 }

@@ -102,31 +102,60 @@ fn build_script(c: &BuildConfig, resolved_version: &str) -> String {
     let bundle_v = resolved_version.trim_start_matches('v');
     s.push_str(&format!("    echo -e \"   Installed Version: ${{cyan}}v${{current_v#v}}${{plain}}\"\n"));
     s.push_str(&format!("    echo -e \"   Bundle Version:    ${{cyan}}v{}${{plain}}\"\n\n", bundle_v));
+    let has_ssl = c.included.ssl && !matches!(c.ssl, SslConfig::None);
+    let has_panel = c.included.xui_panel;
+    
     s.push_str("    echo -e \"What would you like to do?\"\n");
-    s.push_str("    echo -e \"  ${cyan}[1] Update${plain} (Keep database, settings, and users)\"\n");
-    s.push_str("    echo -e \"  ${cyan}[2] Reinstall${plain} (Clean install, overwrite everything)\"\n");
-    s.push_str("    echo -e \"  ${cyan}[3] Abort${plain}\"\n");
-    s.push_str("    read -p \"Choose an option [1-3]: \" opt\n");
+    let mut opt_idx = 1;
+    let mut script_opts = String::new();
+    
+    if has_panel {
+        s.push_str(&format!("    echo -e \"  ${{cyan}}[{}] Update${{plain}} (Keep database, settings, and users)\"\n", opt_idx));
+        script_opts.push_str(&format!("        {}) ACTION=\"update\" ;;\n", opt_idx));
+        opt_idx += 1;
+        
+        s.push_str(&format!("    echo -e \"  ${{cyan}}[{}] Reinstall${{plain}} (Clean install, overwrite everything)\"\n", opt_idx));
+        script_opts.push_str(&format!("        {}) ACTION=\"reinstall\" ;;\n", opt_idx));
+        opt_idx += 1;
+    }
+    
+    if has_ssl {
+        s.push_str(&format!("    echo -e \"  ${{cyan}}[{}] Update SSL Only${{plain}} (Replace SSL certificates only)\"\n", opt_idx));
+        script_opts.push_str(&format!("        {}) ACTION=\"update_ssl\" ;;\n", opt_idx));
+        opt_idx += 1;
+    }
+    
+    s.push_str(&format!("    echo -e \"  ${{cyan}}[{}] Abort${{plain}}\"\n", opt_idx));
+    
+    s.push_str(&format!("    read -p \"Choose an option [1-{}]: \" opt\n", opt_idx));
     s.push_str("    case $opt in\n");
-    s.push_str("        1) ACTION=\"update\" ;;\n");
-    s.push_str("        2) ACTION=\"reinstall\" ;;\n");
+    s.push_str(&script_opts);
     s.push_str("        *) echo -e \"${red}Aborted.${plain}\" ; exit 0 ;;\n");
     s.push_str("    esac\n");
     s.push_str("else\n");
-    s.push_str("    read -p \"🚀 Do you want to start the installation? [y/N]: \" confirm\n");
-    s.push_str("    if [[ ! \"$confirm\" =~ ^[Yy]$ ]]; then\n");
-    s.push_str("        echo -e \"${red}Installation aborted.${plain}\"\n");
-    s.push_str("        exit 0\n");
-    s.push_str("    fi\n");
+    if !has_panel {
+        s.push_str("    echo -e \"${red}Error: No existing 3x-ui installation found to update.${plain}\"\n");
+        s.push_str("    exit 1\n");
+    } else {
+        s.push_str("    read -p \"🚀 Do you want to start the installation? [y/N]: \" confirm\n");
+        s.push_str("    if [[ ! \"$confirm\" =~ ^[Yy]$ ]]; then\n");
+        s.push_str("        echo -e \"${red}Installation aborted.${plain}\"\n");
+        s.push_str("        exit 0\n");
+        s.push_str("    fi\n");
+    }
     s.push_str("fi\n\n");
 
     s.push_str("echo -e \"${green}Executing $ACTION process...${plain}\"\n\n");
 
     // Package functions
-    s.push_str("# ── System Package Installation ─────────────────────────────\n");
-    s.push_str(&pkg_section);
-    s.push_str("\n\n");
-    s.push_str(&format!("{}\n\n", install_call));
+    if c.included.system_packages {
+        s.push_str("if [[ \"$ACTION\" != \"update_ssl\" ]]; then\n");
+        s.push_str("# ── System Package Installation ─────────────────────────────\n");
+        s.push_str(&pkg_section);
+        s.push_str("\n\n");
+        s.push_str(&format!("{}\n\n", install_call));
+        s.push_str("fi\n\n");
+    }
 
     // Stop old service
     s.push_str("# ── Stopping Previous Service ───────────────────────────────\n");
@@ -169,6 +198,7 @@ fn build_script(c: &BuildConfig, resolved_version: &str) -> String {
     ));
     s.push_str("else\n");
     s.push_str("    echo -e \"${blue}Updating binary only. Existing settings preserved.${plain}\"\n");
+    s.push_str("fi\n");
     s.push_str("fi\n\n");
 
     // SSL
@@ -199,7 +229,13 @@ fn build_script(c: &BuildConfig, resolved_version: &str) -> String {
     let access_link = format!("{}://{}:{}/{}", protocol, host_var, c.panel_port, c.panel_web_base_path);
 
     s.push_str("echo \"\"\n");
-    s.push_str("if [[ \"$ACTION\" == \"update\" ]]; then\n");
+    s.push_str("if [[ \"$ACTION\" == \"update_ssl\" ]]; then\n");
+    s.push_str("    echo -e \"${green}╔════════════════════════════════════════════════════════════╗${plain}\"\n");
+    s.push_str("    echo -e \"${green}║            SSL Certificates updated successfully!          ║${plain}\"\n");
+    s.push_str("    echo -e \"${green}╠════════════════════════════════════════════════════════════╣${plain}\"\n");
+    s.push_str(&format!("echo -e \"${{green}}║ Access Link:   {:<43} ║${{plain}}\"\n", access_link));
+    s.push_str("    echo -e \"${green}╚════════════════════════════════════════════════════════════╝${plain}\"\n");
+    s.push_str("elif [[ \"$ACTION\" == \"update\" ]]; then\n");
     s.push_str("    echo -e \"${green}╔════════════════════════════════════════════════════════════╗${plain}\"\n");
     s.push_str("    echo -e \"${green}║                3x-ui updated successfully!                 ║${plain}\"\n");
     s.push_str("    echo -e \"${green}╠════════════════════════════════════════════════════════════╣${plain}\"\n");
